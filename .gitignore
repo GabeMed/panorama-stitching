@@ -10,7 +10,7 @@ wheels/
 .venv
 
 # Private Images
-data/*
+src/data/*
 panorama_result.jpg
 
 # Planning
