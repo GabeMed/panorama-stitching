@@ -3,10 +3,10 @@ import sys
 import cv2
 import numpy as np
 
+from blending import simple_blend
 from features import detect_and_match
 from homography import ransac_homography
 from warping import warp_and_prepare
-from blending import simple_blend
 
 
 def crop_black_borders(img):
@@ -21,13 +21,14 @@ def crop_black_borders(img):
     return img[y_min : y_max + 1, x_min : x_max + 1]
 
 
-def stitch(img_a, img_b, blend_mode="simple"):
+def stitch(img_a, img_b, blend_mode="simple", rng=None):
     """Stitch two images into a panorama.
 
     Parameters
     ----------
     img_a, img_b : ndarray (H, W, 3) BGR images.
     blend_mode : str – "simple" (default).
+    rng : numpy.random.Generator, optional – seeds RANSAC for reproducible output.
 
     Returns
     -------
@@ -36,9 +37,13 @@ def stitch(img_a, img_b, blend_mode="simple"):
     # Module 1 — feature detection & matching
     src_pts, dst_pts = detect_and_match(img_a, img_b)
     print(f"[features]   {len(src_pts)} good matches found")
+    if len(src_pts) < 4:
+        raise ValueError(f"only {len(src_pts)} matches; the images may not overlap")
 
     # Module 2 — homography via RANSAC + DLT
-    H, inlier_mask = ransac_homography(src_pts, dst_pts)
+    H, inlier_mask = ransac_homography(src_pts, dst_pts, rng=rng)
+    if H is None:
+        raise ValueError("RANSAC found no valid homography")
     print(f"[homography] {inlier_mask.sum()} inliers out of {len(src_pts)} matches")
 
     # Module 3 — warping

@@ -92,13 +92,14 @@ def _compute_reprojection_errors(H, src_pts, dst_pts):
     src_h = np.hstack([src_pts, ones])  # N x 3
 
     projected = (H @ src_h.T).T  # N x 3
-    projected = projected[:, :2] / projected[:, 2:3]
+    # Points mapped to infinity (w = 0) by a degenerate candidate get an infinite error.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        projected = projected[:, :2] / projected[:, 2:3]
+        errors = np.sqrt(np.sum((projected - dst_pts) ** 2, axis=1))
+    return np.nan_to_num(errors, nan=np.inf)
 
-    errors = np.sqrt(np.sum((projected - dst_pts) ** 2, axis=1))
-    return errors
 
-
-def ransac_homography(src_pts, dst_pts, n_iters=2000, threshold=5.0):
+def ransac_homography(src_pts, dst_pts, n_iters=2000, threshold=5.0, rng=None):
     """Compute the best homography using RANSAC + DLT.
 
     Parameters
@@ -106,25 +107,32 @@ def ransac_homography(src_pts, dst_pts, n_iters=2000, threshold=5.0):
     src_pts, dst_pts : ndarray (N, 2)
     n_iters : int – number of RANSAC iterations.
     threshold : float – inlier distance threshold in pixels.
+    rng : numpy.random.Generator, optional – pass one for reproducible results.
 
     Returns
     -------
-    H : ndarray (3, 3)
+    H : ndarray (3, 3), or None if no sample produced a valid model.
     inlier_mask : ndarray (N,) bool
     """
     N = src_pts.shape[0]
+    if N < 4:
+        raise ValueError(f"need at least 4 correspondences, got {N}")
+    rng = np.random.default_rng() if rng is None else rng
     best_inlier_count = 0
     best_inlier_mask = None
     best_H = None
 
     for _ in range(n_iters):
         # 1. Random 4-point sample
-        indices = np.random.choice(N, size=4, replace=False)
+        indices = rng.choice(N, size=4, replace=False)
 
-        # 2. Compute candidate H
+        # 2. Compute candidate H (degenerate samples, e.g. collinear points, are skipped)
         try:
-            H_candidate = _dlt(src_pts[indices], dst_pts[indices])
+            with np.errstate(divide="ignore", invalid="ignore"):
+                H_candidate = _dlt(src_pts[indices], dst_pts[indices])
         except np.linalg.LinAlgError:
+            continue
+        if not np.all(np.isfinite(H_candidate)):
             continue
 
         # 3. Reprojection errors on ALL points
