@@ -89,8 +89,11 @@ def warp_and_prepare(img_a, img_b, H):
     canvas_b = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
     canvas_b[offset_y : offset_y + h_b, offset_x : offset_x + w_b] = img_b
 
-    # Compute masks
-    mask_a = (warped_a > 0).any(axis=2)
+    # Compute masks. A's footprint comes from warping a mask of ones, so black
+    # pixels inside image A are not mistaken for empty canvas.
+    mask_a = cv2.warpPerspective(
+        np.ones(img_a.shape[:2], dtype=np.uint8), H_adjusted, (canvas_w, canvas_h), flags=cv2.INTER_NEAREST
+    ).astype(bool)
     mask_b = np.zeros((canvas_h, canvas_w), dtype=bool)
     mask_b[offset_y : offset_y + h_b, offset_x : offset_x + w_b] = True
 

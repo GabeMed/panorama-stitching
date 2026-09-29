@@ -24,18 +24,21 @@ def detect_and_match(img_a, img_b, ratio_thresh=0.75):
     kp_a, desc_a = sift.detectAndCompute(gray_a, None)
     kp_b, desc_b = sift.detectAndCompute(gray_b, None)
 
+    if desc_a is None or desc_b is None or len(kp_b) < 2:
+        return np.empty((0, 2)), np.empty((0, 2))
+
     # 3. Match descriptors (brute-force, k=2 for ratio test)
     bf = cv2.BFMatcher()
     raw_matches = bf.knnMatch(desc_a, desc_b, k=2)
 
-    # 4. Filter with Lowe's ratio test
+    # 4. Filter with Lowe's ratio test (knnMatch can return fewer than 2 neighbours)
     good_matches = []
-    for m, n in raw_matches:
-        if m.distance < ratio_thresh * n.distance:
-            good_matches.append(m)
+    for pair in raw_matches:
+        if len(pair) == 2 and pair[0].distance < ratio_thresh * pair[1].distance:
+            good_matches.append(pair[0])
 
     # 5. Extract coordinate pairs
-    src_pts = np.array([kp_a[m.queryIdx].pt for m in good_matches])
-    dst_pts = np.array([kp_b[m.trainIdx].pt for m in good_matches])
+    src_pts = np.array([kp_a[m.queryIdx].pt for m in good_matches]).reshape(-1, 2)
+    dst_pts = np.array([kp_b[m.trainIdx].pt for m in good_matches]).reshape(-1, 2)
 
     return src_pts, dst_pts

@@ -1,9 +1,29 @@
 [project]
 name = "panorama"
 version = "0.1.0"
-description = "Add your description here"
+description = "Two-image panorama stitching with DLT + RANSAC homography estimation implemented in NumPy"
 requires-python = ">=3.13"
 dependencies = [
     "numpy>=2.4.3",
     "opencv-python>=4.13.0.92",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["blending", "features", "homography", "main", "synthetic", "warping"]
